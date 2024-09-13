@@ -562,7 +562,8 @@ class PretrainedThoughtModel(lightning.LightningModule, abc.ABC):
     ) -> ForwardResult:
         b, l = x.shape
         if key_value_cache:
-            l = key_value_cache[0][0].size(2)
+            # kvcache.shape = (layer num, 2, batch, head, sequence, hidden / head)
+            l = key_value_cache[0][0].size(2) # 已经推理的token数
 
         start_thought_token = torch.full(
             (b, 1),
@@ -576,9 +577,9 @@ class PretrainedThoughtModel(lightning.LightningModule, abc.ABC):
             device=x.device,
             dtype=torch.int64,
         )
-        x = torch.cat([x, start_thought_token], dim=1)
+        x = torch.cat([x, start_thought_token], dim=1) # 已经产生的token后面添加thought start token
 
-        # generate a first thought token and save the key value cache
+        # 采样地一个thought token
         logits, _, key_value_cache = self.forward(
             x,
             attention_mask,
@@ -594,7 +595,7 @@ class PretrainedThoughtModel(lightning.LightningModule, abc.ABC):
             suppress=[self.start_thought_token_id, self.end_thought_token_id],
         )
 
-        # sample self.thought_length - 1 more thought tokens
+        # 再采样 self.thought_length - 1 个thought tokens
         for _ in range(self.thought_length - 1):
             logits, _, key_value_cache = self.forward(
                 next_token,
@@ -611,7 +612,7 @@ class PretrainedThoughtModel(lightning.LightningModule, abc.ABC):
                 suppress=[self.start_thought_token_id, self.end_thought_token_id],
             )
 
-        # add the end thought token and generate the token to keep
+        # 最后一个thought token后面添加thought end token,然后采样一个正文token
         final_tokens = torch.cat([next_token, end_thought_token], dim=1)
         logits, h, key_value_cache = self.forward(
             final_tokens,
