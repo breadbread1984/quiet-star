@@ -114,7 +114,7 @@ class PretrainedThoughtModel(lightning.LightningModule, abc.ABC):
         # WARNING: The vocab size / size of embedding weights can be larger than
         #          len(tokenizer). The extra weights correspond to dummy tokens.
         self.vocab_size, self.embed_dim = self.tok_emb.weight.shape
-        # 3) 为预测头设置为embedding table一样的权重，以可以预测thought start & end两个新token
+        # 3) 后的LLM的预测头的权重，并添加两个额外token对应的权重向量
         self.lm_head = self.model.lm_head
         if self.lm_head is None:
             self.lm_head = torch.nn.Linear(self.embed_dim, self.vocab_size, bias=False)
@@ -150,7 +150,7 @@ class PretrainedThoughtModel(lightning.LightningModule, abc.ABC):
                     init_lm_head_weight
                 )
                 self.lm_head.weight[self.end_thought_token_id, :] = init_lm_head_weight
-
+        # 4) 创建mixing head，用来决定原始LLM和thought LLM预测logits的mixing weight
         self.mixing_mlp = torch.nn.Sequential(
             torch.nn.Linear(
                 2 * self.embed_dim,
