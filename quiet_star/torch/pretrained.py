@@ -55,7 +55,7 @@ class PretrainedThoughtModel(lightning.LightningModule, abc.ABC):
             config.model.tokenizer_name,
             trust_remote_code=True,
         )
-
+        # 1) add two new token (thoughtstart, thoughtend) to tokenizer
         special_tokens_dict = {
             "additional_special_tokens": [
                 START_THOUGHT_TOKEN,
@@ -75,20 +75,18 @@ class PretrainedThoughtModel(lightning.LightningModule, abc.ABC):
             self.tokenizer.pad_token = self.tokenizer.bos_token
         self.start_thought_token_id = self.tokenizer(
             START_THOUGHT_TOKEN, return_attention_mask=False
-        )["input_ids"][
-            -1
-        ]  # -1 because there might be a BOS token
+        )["input_ids"][-1] # 获得tokenizer给thought start分配的token id
         self.end_thought_token_id = self.tokenizer(
             END_THOUGHT_TOKEN, return_attention_mask=False
-        )["input_ids"][-1]
+        )["input_ids"][-1] # 获得tokenizer给thought end分配的token id
         init_embedding_token_ids = self.tokenizer(
             config.embedding_init_token, return_attention_mask=False
-        )["input_ids"][-1]
+        )["input_ids"][-1] # 随便选择一个token
         init_token_embedding = (
             model.get_input_embeddings().weight[init_embedding_token_ids].detach()
         )
-        init_token_embedding = init_token_embedding.mean(dim=0)
-
+        init_token_embedding = init_token_embedding.mean(dim=0) # 计算这个随机选择token的embedding向量
+        # 2) 获得LLM的embedding table的权重，并添加两个额外token对应的embedding向量
         self.tok_emb = self.model.get_input_embeddings().to(self.device)
 
         e, d = self.tok_emb.weight.shape
@@ -116,7 +114,7 @@ class PretrainedThoughtModel(lightning.LightningModule, abc.ABC):
         # WARNING: The vocab size / size of embedding weights can be larger than
         #          len(tokenizer). The extra weights correspond to dummy tokens.
         self.vocab_size, self.embed_dim = self.tok_emb.weight.shape
-
+        # 3) 为预测头设置为embedding table一样的权重，以可以预测thought start & end两个新token
         self.lm_head = self.model.lm_head
         if self.lm_head is None:
             self.lm_head = torch.nn.Linear(self.embed_dim, self.vocab_size, bias=False)
