@@ -212,34 +212,34 @@ class PretrainedThoughtModel(lightning.LightningModule, abc.ABC):
         b, l = x.shape
 
         # only generate thoughts for tokens which have enough lookahead tokens
-        n = self.thought_length + 2 + self.lookahead_tokens
-        lpp = min(self.train_max_length - n, l - self.lookahead_tokens)
+        n = self.thought_length + 2 + self.lookahead_tokens # tought长度 + thought start + thought end + 监督的token数量
+        lpp = min(self.train_max_length - n, l - self.lookahead_tokens) # 
 
         start_token = torch.full(
             (b, lpp, 1),
             self.start_thought_token_id,
             device=x.device,
             dtype=torch.int64,
-        )
+        ) # start_token.shape = (batch, lpp, 1)
         end_token = torch.full(
             (b, lpp, 1),
             self.end_thought_token_id,
             device=x.device,
             dtype=torch.int64,
-        )
+        ) # end_token.shape = (batch, lpp, 1)
         padding = torch.full(
             (b, n), self.pad_token_id, device=x.device, dtype=torch.int64
-        )
+        ) # padding.shape = (batch, n)
         lookahead = self.shift_and_stack(
-            torch.concatenate([x, padding], dim=1),
+            torch.concatenate([x, padding], dim=1), # shape = (batch, x_len + tought长度 + 2 + 监督token数量)
             rows=lpp,
             cols=self.lookahead_tokens,
             col_offset=1,
-        )
+        ) # lookahead.shape = (batch, lpp, lookahead_tokens)
 
-        x = x[:, :lpp]
-        x = torch.unsqueeze(x, dim=2)
-        x = torch.concatenate([x, start_token], dim=2)
+        x = x[:, :lpp] # x.shape = (batch, lpp)
+        x = torch.unsqueeze(x, dim=2) # x.shape = (batch, lpp, 1)
+        x = torch.concatenate([x, start_token], dim=2) # x.shape = (batch, lpp, 2)
         next_tokens = x
 
         key_value_cache = None
